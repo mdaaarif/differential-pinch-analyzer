@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Differential Pinch Analysis & Non-Uniform CP Solver</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- App Container -->
+  <div class="app-container">
+    
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+        <div>
+          <h1>Differential Pinch Analyser</h1>
+          <p class="subtitle">Rigorous Pinch Integration & Targeting under Non-Uniform Heat Capacity (PRES '23)</p>
+        </div>
+      </div>
+      
+      <div class="global-controls">
+        <div class="control-group">
+          <label for="example-select">Case Study:</label>
+          <select id="example-select">
+            <option value="paper1">Case Study 1: LNG Mixed Refrigerant</option>
+            <option value="paper2">Case Study 2: Liquid Air Energy Storage (LAES)</option>
+            <option value="custom">Custom Configuration</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="tmin-slider">ΔT<sub>min</sub> (°C):</label>
+          <div class="slider-wrapper">
+            <input type="range" id="tmin-slider" min="2" max="30" step="1" value="20">
+            <span id="tmin-value">20 °C</span>
+          </div>
+        </div>
+        <button id="reset-btn" class="btn btn-outline">Reset Case</button>
+      </div>
+    </header>
+
+    <!-- Main Workspace Layout -->
+    <main class="app-main">
+      
+      <!-- Left Sidebar: Streams and Configuration -->
+      <aside class="sidebar">
+        
+        <!-- Stream Input Card -->
+        <div class="card card-streams">
+          <div class="card-header">
+            <h2>Process Streams</h2>
+            <button id="add-stream-btn" class="btn btn-xs btn-primary">+ Add Stream</button>
+          </div>
+          <div class="card-body scrollable">
+            <table class="streams-table" id="streams-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Type</th>
+                  <th>Fluid</th>
+                  <th>Flow (kg/s)</th>
+                  <th>P (bar)</th>
+                  <th>T<sub>in</sub> (°C)</th>
+                  <th>T<sub>out</sub> (°C)</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="streams-body">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Property Solver comparison Targets Card -->
+        <div class="card card-targets">
+          <div class="card-header">
+            <h2>Thermodynamic Targets Comparison</h2>
+          </div>
+          <div class="card-body">
+            <div class="targets-grid">
+              
+              <!-- Variable CP (Rigorous Model) -->
+              <div class="target-group variable-group">
+                <h3>Rigorous Model (Variable c<sub>p</sub>)</h3>
+                <div class="target-row">
+                  <span class="target-label">Hot Utility (Q<sub>H,min</sub>)</span>
+                  <span class="target-val" id="target-qh">0.00 <span class="unit">MW</span></span>
+                </div>
+                <div class="target-row">
+                  <span class="target-label">Cold Utility (Q<sub>C,min</sub>)</span>
+                  <span class="target-val" id="target-qc">0.00 <span class="unit">MW</span></span>
+                </div>
+                <div class="target-row">
+                  <span class="target-label">Pinch Hot Temperature</span>
+                  <span class="target-val" id="target-pinch-hot">0.0 <span class="unit">°C</span></span>
+                </div>
+                <div class="target-row">
+                  <span class="target-label">Pinch Cold Temperature</span>
+                  <span class="target-val" id="target-pinch-cold">0.0 <span class="unit">°C</span></span>
+                </div>
+              </div>
+
+              <!-- Constant CP (Classic Approximation Model) -->
+              <div class="target-group constant-group">
+                <h3>Constant c<sub>p</sub> Model (Average)</h3>
+                <div class="target-row">
+                  <span class="target-label">Approximated Q<sub>H,min</sub></span>
+                  <span class="target-val text-muted" id="const-qh">0.00 <span class="unit">MW</span></span>
+                  <span class="error-badge" id="err-qh">0.0%</span>
+                </div>
+                <div class="target-row">
+                  <span class="target-label">Approximated Q<sub>C,min</sub></span>
+                  <span class="target-val text-muted" id="const-qc">0.00 <span class="unit">MW</span></span>
+                  <span class="error-badge" id="err-qc">0.0%</span>
+                </div>
+                <div class="target-row">
+                  <span class="target-label">Approximated Pinch Shifted</span>
+                  <span class="target-val text-muted" id="const-pinch">0.0 <span class="unit">°C</span></span>
+                </div>
+                <div class="target-row">
+                  <span class="target-label">Min. Exchanger Units (N<sub>min</sub>)</span>
+                  <span class="target-val" id="target-nmin">0</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+      </aside>
+
+      <!-- Center Workspace: Visualization Curves -->
+      <section class="workspace">
+        
+        <!-- Tab Navigation -->
+        <div class="tab-nav">
+          <button class="tab-btn active" data-tab="composite-tab">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+            Differential Composite Curves
+          </button>
+          <button class="tab-btn" data-tab="gcc-tab">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18M7 16l4-8 4 6 4-11"/></svg>
+            Differential GCC (DGCC)
+          </button>
+          <button class="tab-btn" data-tab="cp-tab">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            Fluid Heat Capacity Profile (c<sub>p</sub> vs T)
+          </button>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="tab-content">
+          
+          <!-- Tab 1: Composite Curves -->
+          <div class="tab-pane active" id="composite-tab">
+            <div class="chart-container">
+              <svg id="composite-svg" class="chart-svg" viewBox="0 0 800 500">
+                <!-- Dynamically drawn -->
+              </svg>
+              <div class="chart-legend">
+                <div class="legend-item"><span class="legend-color hot"></span>Hot Composite Curve (Varying CP)</div>
+                <div class="legend-item"><span class="legend-color cold"></span>Cold Composite Curve (Shifted & Varying CP)</div>
+                <div class="legend-item"><span class="legend-color pinch"></span>Pinch Point Location</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 2: Grand Composite Curve (DGCC) -->
+          <div class="tab-pane" id="gcc-tab">
+            <div class="chart-container">
+              <svg id="gcc-svg" class="chart-svg" viewBox="0 0 800 500">
+                <!-- Dynamically drawn -->
+              </svg>
+              <div class="chart-legend">
+                <div class="legend-item"><span class="legend-color gcc"></span>Differential GCC (DGCC)</div>
+                <div class="legend-item"><span class="legend-color pinch-shifted"></span>Shifted Pinch Line</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 3: Heat Capacity Profile Plot -->
+          <div class="tab-pane" id="cp-tab">
+            <div class="chart-container">
+              <svg id="cp-svg" class="chart-svg" viewBox="0 0 800 500">
+                <!-- Dynamically drawn -->
+              </svg>
+              <div class="chart-legend" id="cp-legend">
+                <!-- Populated dynamically based on streams -->
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
