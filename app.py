@@ -106,6 +106,20 @@ def get_cp_value(fluid, temp_c, pressure_bar):
             }
             return defaults.get(cp_fluid, 1000.0)
 
+# Warm up CoolProp mixture databases on server startup to prevent cloud timeouts
+def warmup_coolprop():
+    print("Warming up CoolProp thermodynamic database...")
+    try:
+        # Evaluate one point for mixed refrigerant to force CoolProp to compile EoS
+        get_cp_value("mixedrefrigerant", 100.0, 7.09)
+        # Evaluate one point for air
+        get_cp_value("air", 0.0, 60.0)
+        print("CoolProp warm-up complete!")
+    except Exception as e:
+        print(f"CoolProp warm-up warning: {e}")
+
+warmup_coolprop()
+
 def evaluate_stream_cp_profile(stream, T_start, T_end, step=1.0):
     """
     Generates a temperature vs. CP (kW/°C) list for a stream over its range.
