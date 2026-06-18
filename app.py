@@ -1,7 +1,7 @@
 import os
 import io
 import webbrowser
-from threading import Timer
+from threading import Timer, Lock
 from functools import lru_cache
 from flask import Flask, request, jsonify, send_from_directory
 import numpy as np
@@ -21,12 +21,15 @@ def static_proxy(path):
     return send_from_directory(app.static_folder, path)
 
 # ==========================================================================
-# THERMODYNAMIC PROPERTY EVALUATION (CACHED FOR SPEED)
+# THERMODYNAMIC PROPERTY EVALUATION (CACHED & THREAD-SAFE)
 # ==========================================================================
+coolprop_lock = Lock()
+
 @lru_cache(maxsize=10000)
 def get_props_si_cached(output_prop, input_prop1, val1, input_prop2, val2, fluid):
-    """Cached wrapper around CoolProp.CoolProp.PropsSI to avoid expensive C++ flash iterations."""
-    return CP.PropsSI(output_prop, input_prop1, val1, input_prop2, val2, fluid)
+    """Cached wrapper around CoolProp.CoolProp.PropsSI to avoid expensive C++ flash iterations. Thread-safe."""
+    with coolprop_lock:
+        return CP.PropsSI(output_prop, input_prop1, val1, input_prop2, val2, fluid)
 
 @lru_cache(maxsize=10000)
 def get_cp_value(fluid, temp_c, pressure_bar):

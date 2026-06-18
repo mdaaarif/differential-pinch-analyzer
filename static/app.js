@@ -70,8 +70,10 @@ function setupEventListeners() {
   const slider = document.getElementById('tmin-slider');
   const display = document.getElementById('tmin-value');
   slider.addEventListener('input', (e) => {
+    display.textContent = `${parseFloat(e.target.value)} °C`;
+  });
+  slider.addEventListener('change', (e) => {
     state.deltaTmin = parseFloat(e.target.value);
-    display.textContent = `${state.deltaTmin} °C`;
     solveAndRender();
   });
 
