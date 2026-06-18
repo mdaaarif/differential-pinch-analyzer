@@ -2,6 +2,7 @@ import os
 import io
 import webbrowser
 from threading import Timer
+from functools import lru_cache
 from flask import Flask, request, jsonify, send_from_directory
 import numpy as np
 import pandas as pd
@@ -20,12 +21,19 @@ def static_proxy(path):
     return send_from_directory(app.static_folder, path)
 
 # ==========================================================================
-# THERMODYNAMIC PROPERTY EVALUATION
+# THERMODYNAMIC PROPERTY EVALUATION (CACHED FOR SPEED)
 # ==========================================================================
+@lru_cache(maxsize=10000)
+def get_props_si_cached(output_prop, input_prop1, val1, input_prop2, val2, fluid):
+    """Cached wrapper around CoolProp.CoolProp.PropsSI to avoid expensive C++ flash iterations."""
+    return CP.PropsSI(output_prop, input_prop1, val1, input_prop2, val2, fluid)
+
+@lru_cache(maxsize=10000)
 def get_cp_value(fluid, temp_c, pressure_bar):
     """
     Returns specific heat capacity cp in J/kg-K at temp_c (Celsius) and pressure_bar (bar).
     Includes safety fallbacks to handle phase boundaries/supercritical exceptions.
+    Cached to make high-resolution discretization solver runs run in milliseconds.
     """
     fluid_clean = fluid.lower().replace(" ", "")
     
@@ -36,8 +44,8 @@ def get_cp_value(fluid, temp_c, pressure_bar):
         T_kelvin = temp_c + 273.15
         P_pascals = pressure_bar * 1e5
         try:
-            h1 = CP.PropsSI('Hmass', 'T', T_kelvin, 'P', P_pascals, fluid)
-            h2 = CP.PropsSI('Hmass', 'T', T_kelvin + 0.1, 'P', P_pascals, fluid)
+            h1 = get_props_si_cached('Hmass', 'T', T_kelvin, 'P', P_pascals, fluid)
+            h2 = get_props_si_cached('Hmass', 'T', T_kelvin + 0.1, 'P', P_pascals, fluid)
             cp = (h2 - h1) / 0.1
             if np.isnan(cp) or np.isinf(cp) or cp <= 0:
                 return 2200.0
@@ -69,7 +77,7 @@ def get_cp_value(fluid, temp_c, pressure_bar):
     # Check bounds or critical states to avoid CoolProp crashes
     try:
         # Get specific heat capacity Cp in J/kg-K
-        cp = CP.PropsSI('Cpmass', 'T', T_kelvin, 'P', P_pascals, cp_fluid)
+        cp = get_props_si_cached('Cpmass', 'T', T_kelvin, 'P', P_pascals, cp_fluid)
         # Check for NaN or infinite values
         if np.isnan(cp) or np.isinf(cp):
             return 1000.0
@@ -78,7 +86,7 @@ def get_cp_value(fluid, temp_c, pressure_bar):
         # Fallback extrapolation or default value based on fluid
         try:
             # Try getting Cp at a slightly offset temperature or pressure if at phase boundary
-            cp = CP.PropsSI('Cpmass', 'T', T_kelvin + 0.1, 'P', P_pascals, cp_fluid)
+            cp = get_props_si_cached('Cpmass', 'T', T_kelvin + 0.1, 'P', P_pascals, cp_fluid)
             return cp
         except Exception:
             # General generic defaults (approximate average values)
