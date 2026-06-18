@@ -15,14 +15,14 @@ const state = {
 };
 
 const FLUID_OPTIONS = [
-  { value: 'mixedrefrigerant', label: 'Mixed Refrigerant (Precool)' },
-  { value: 'air', label: 'Air (N2/O2/Ar)' },
-  { value: 'water', label: 'Water (H2O)' },
-  { value: 'propane', label: 'Propane (C3H8)' },
-  { value: 'methanol', label: 'Methanol (CH3OH)' },
-  { value: 'carbondioxide', label: 'Carbon Dioxide (CO2)' },
-  { value: 'nitrogen', label: 'Nitrogen (N2)' },
-  { value: 'oxygen', label: 'Oxygen (O2)' }
+  { value: 'mixedrefrigerant', label: 'Mixed Ref' },
+  { value: 'air', label: 'Air' },
+  { value: 'water', label: 'Water' },
+  { value: 'propane', label: 'Propane' },
+  { value: 'methanol', label: 'Methanol' },
+  { value: 'carbondioxide', label: 'CO2' },
+  { value: 'nitrogen', label: 'N2' },
+  { value: 'oxygen', label: 'O2' }
 ];
 
 // Preloaded Case Studies from PRES '23 paper
@@ -30,15 +30,15 @@ const EXAMPLES = {
   paper1: {
     deltaTmin: 20,
     streams: [
-      { id: 'H1', type: 'hot', fluid: 'mixedrefrigerant', flow: 22.718, pressure: 7.09, Tin: 120.0, Tout: 65.0 },
-      { id: 'H2', type: 'hot', fluid: 'mixedrefrigerant', flow: 136.209, pressure: 7.09, Tin: 80.0, Tout: 50.0 },
-      { id: 'H3', type: 'hot', fluid: 'mixedrefrigerant', flow: 79.146, pressure: 7.09, Tin: 135.0, Tout: 110.0 },
-      { id: 'H4', type: 'hot', fluid: 'mixedrefrigerant', flow: 7.988, pressure: 7.09, Tin: 220.0, Tout: 95.0 },
-      { id: 'H5', type: 'hot', fluid: 'mixedrefrigerant', flow: 64.967, pressure: 7.09, Tin: 135.0, Tout: 105.0 },
-      { id: 'H6', type: 'cold', fluid: 'mixedrefrigerant', flow: 68.118, pressure: 7.09, Tin: 65.0, Tout: 90.0 },
-      { id: 'C1', type: 'cold', fluid: 'mixedrefrigerant', flow: 35.057, pressure: 7.09, Tin: 75.0, Tout: 200.0 },
-      { id: 'C2', type: 'cold', fluid: 'mixedrefrigerant', flow: 30.190, pressure: 7.09, Tin: 30.0, Tout: 210.0 },
-      { id: 'C3', type: 'cold', fluid: 'mixedrefrigerant', flow: 22.754, pressure: 7.09, Tin: 60.0, Tout: 140.0 }
+      { id: 'H1', type: 'hot', fluid: 'mixedrefrigerant', flow: 12.538, pressure: 7.09, Tin: 120.0, Tout: 65.0 },
+      { id: 'H2', type: 'hot', fluid: 'mixedrefrigerant', flow: 120.923, pressure: 7.09, Tin: 80.0, Tout: 50.0 },
+      { id: 'H3', type: 'hot', fluid: 'mixedrefrigerant', flow: 26.276, pressure: 7.09, Tin: 135.0, Tout: 110.0 },
+      { id: 'H4', type: 'hot', fluid: 'mixedrefrigerant', flow: 4.218, pressure: 7.09, Tin: 220.0, Tout: 95.0 },
+      { id: 'H5', type: 'hot', fluid: 'mixedrefrigerant', flow: 26.815, pressure: 7.09, Tin: 135.0, Tout: 105.0 },
+      { id: 'H6', type: 'cold', fluid: 'mixedrefrigerant', flow: 58.904, pressure: 7.09, Tin: 65.0, Tout: 90.0 },
+      { id: 'C1', type: 'cold', fluid: 'mixedrefrigerant', flow: 29.742, pressure: 7.09, Tin: 75.0, Tout: 200.0 },
+      { id: 'C2', type: 'cold', fluid: 'mixedrefrigerant', flow: 24.913, pressure: 7.09, Tin: 30.0, Tout: 210.0 },
+      { id: 'C3', type: 'cold', fluid: 'mixedrefrigerant', flow: 8.418, pressure: 7.09, Tin: 60.0, Tout: 140.0 }
     ]
   },
   paper2: {
