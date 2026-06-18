@@ -31,18 +31,19 @@ def get_cp_value(fluid, temp_c, pressure_bar):
     
     if fluid_clean == 'mixedrefrigerant':
         # Case Study 1 Mixed Refrigerant: equimolar mixture of butane/pentane/hexane/heptane at 7.09 bar.
-        # Specific heat capacity (kJ/kg-K) spikes between bubble (110.11 C) and dew (141.48 C) points.
-        t_bubble = 110.11
-        t_dew = 141.48
-        if t_bubble <= temp_c <= t_dew:
-            # Gaussian bell curve peaking at 125.8 C
-            t_mid = (t_bubble + t_dew) / 2.0
-            width = (t_dew - t_bubble) / 3.0
-            cp_j_kg = (2.2 + (15.0 - 2.2) * np.exp(-((temp_c - t_mid) / width)**2)) * 1000.0
-        else:
-            # Baseline sensible Cp
-            cp_j_kg = 2.2 * 1000.0
-        return cp_j_kg
+        # Calculated rigorously using CoolProp and numerical enthalpy derivative.
+        fluid = "n-Butane[0.25]&n-Pentane[0.25]&n-Hexane[0.25]&n-Heptane[0.25]"
+        T_kelvin = temp_c + 273.15
+        P_pascals = pressure_bar * 1e5
+        try:
+            h1 = CP.PropsSI('Hmass', 'T', T_kelvin, 'P', P_pascals, fluid)
+            h2 = CP.PropsSI('Hmass', 'T', T_kelvin + 0.1, 'P', P_pascals, fluid)
+            cp = (h2 - h1) / 0.1
+            if np.isnan(cp) or np.isinf(cp) or cp <= 0:
+                return 2200.0
+            return cp
+        except Exception:
+            return 2200.0
 
     if fluid.lower() == 'custom' or not fluid:
         return 1000.0 # Default fallback placeholder for custom streams
@@ -96,8 +97,8 @@ def get_cp_value(fluid, temp_c, pressure_bar):
 
 def evaluate_stream_cp_profile(stream, T_start, T_end, step=1.0):
     """
-    Generates a temperature vs. CP (MW/°C) list for a stream over its range.
-    CP = mass_flow * cp(T, P) / 1e6
+    Generates a temperature vs. CP (kW/°C) list for a stream over its range.
+    CP = mass_flow * cp(T, P) / 1000.0
     """
     flow = stream["flow"] # kg/s
     pressure = stream.get("pressure", 1.0) # bar
@@ -108,8 +109,8 @@ def evaluate_stream_cp_profile(stream, T_start, T_end, step=1.0):
     
     for T in temps:
         cp_j_kg = get_cp_value(fluid, T, pressure)
-        cp_mw_c = (flow * cp_j_kg) / 1000.0 # convert W/°C to kW/°C
-        profile.append((float(T), float(cp_mw_c)))
+        cp_kw_c = (flow * cp_j_kg) / 1000.0 # convert W/°C to kW/°C
+        profile.append((float(T), float(cp_kw_c)))
         
     return profile
 
@@ -180,11 +181,11 @@ def run_differential_pinch(streams, delta_tmin, temp_step=1.0):
             if t_low <= t_actual <= t_high:
                 # Calculate local CP
                 cp_j_kg = get_cp_value(s["fluid"], t_actual, s.get("pressure", 1.0))
-                cp_mw_c = (s["flow"] * cp_j_kg) / 1000.0
+                cp_kw_c = (s["flow"] * cp_j_kg) / 1000.0
                 if is_hot:
-                    sum_cp_hot += cp_mw_c
+                    sum_cp_hot += cp_kw_c
                 else:
-                    sum_cp_cold += cp_mw_c
+                    sum_cp_cold += cp_kw_c
                     
         # Net heat load in this interval (shifted high down to shifted low)
         dh = (sum_cp_hot - sum_cp_cold) * (T_start - T_end)
@@ -206,14 +207,8 @@ def run_differential_pinch(streams, delta_tmin, temp_step=1.0):
     R_feasible = [r + qh_min for r in R]
     qc_min = R_feasible[-1]
 
-    # Find Pinch Point (where feasible cascade equals zero)
-    pinch_idx = 0
-    min_val = 999999.0
-    for idx, val in enumerate(R_feasible):
-        if val < min_val:
-            min_val = val
-            pinch_idx = idx
-
+    # Find Pinch Point (where feasible cascade is closest to zero)
+    pinch_idx = min(range(len(R_feasible)), key=lambda i: abs(R_feasible[i]))
     pinch_shifted = float(shifted_temps_descending[pinch_idx])
     pinch_hot = pinch_shifted + shift
     pinch_cold = pinch_shifted - shift
@@ -273,6 +268,9 @@ def run_differential_pinch(streams, delta_tmin, temp_step=1.0):
     # Shift Cold Composite by QCmin
     cold_H_shifted = [h + qc_min for h in cold_H]
 
+    # Verify consistency between composite curves and GCC (with numerical tolerance)
+    assert abs((cold_H_shifted[-1] - hot_H[-1]) - qh_min) < 2.0, "Composite curves and GCC inconsistent"
+
     # Calculate actual maximum H scale
     h_max = max(max(hot_H) if hot_H else 0, max(cold_H_shifted) if cold_H_shifted else 0)
 
@@ -288,20 +286,20 @@ def run_differential_pinch(streams, delta_tmin, temp_step=1.0):
     for s in streams:
         t_range = abs(s["Tin"] - s["Tout"])
         if t_range < 0.1:
-            cp_avg_mw = (s["flow"] * get_cp_value(s["fluid"], s["Tin"], s.get("pressure", 1.0))) / 1000.0
+            cp_avg_kw = (s["flow"] * get_cp_value(s["fluid"], s["Tin"], s.get("pressure", 1.0))) / 1000.0
         else:
             # Numerical integration of Cp
             t_steps = np.linspace(min(s["Tin"], s["Tout"]), max(s["Tin"], s["Tout"]), 50)
             cp_sum = sum(get_cp_value(s["fluid"], t, s.get("pressure", 1.0)) for t in t_steps)
             cp_avg_j_kg = cp_sum / len(t_steps)
-            cp_avg_mw = (s["flow"] * cp_avg_j_kg) / 1000.0
+            cp_avg_kw = (s["flow"] * cp_avg_j_kg) / 1000.0
             
         constant_streams.append({
             "id": s["id"],
             "type": s["type"],
             "Tin": s["Tin"],
             "Tout": s["Tout"],
-            "MCp": cp_avg_mw # Constant CP model uses MCp
+            "MCp": cp_avg_kw # Constant CP model uses MCp
         })
         
     const_results = solve_classic_constant_cp(constant_streams, delta_tmin)
@@ -398,7 +396,8 @@ def solve_classic_constant_cp(streams, delta_tmin):
     qh_min = max(0.0, -min_qcas)
     Rcas = [q + qh_min for q in Qcas]
     qc_min = Rcas[-1]
-    pinch_idx = Rcas.index(0.0) if 0.0 in Rcas else 0
+    
+    pinch_idx = min(range(len(Rcas)), key=lambda i: abs(Rcas[i]))
     pinch_shifted = temp_list[pinch_idx]
 
     return {
