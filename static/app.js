@@ -66,6 +66,14 @@ function setupEventListeners() {
     }
   });
 
+  // Thermo Engine Selection
+  const engineSelect = document.getElementById('engine-select');
+  if (engineSelect) {
+    engineSelect.addEventListener('change', () => {
+      solveAndRender();
+    });
+  }
+
   // Delta Tmin Slider
   const slider = document.getElementById('tmin-slider');
   const display = document.getElementById('tmin-value');
@@ -213,12 +221,16 @@ function renderStreamTable() {
 // --- Solve PTA from Flask and Re-Render Targets & Plots ---
 async function solveAndRender() {
   try {
+    const engineSelect = document.getElementById('engine-select');
+    const thermoEngine = engineSelect ? engineSelect.value : 'dwsim';
+    
     const res = await fetch('/api/solve', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         streams: state.streams,
-        deltaTmin: state.deltaTmin
+        deltaTmin: state.deltaTmin,
+        thermoEngine: thermoEngine
       })
     });
 
