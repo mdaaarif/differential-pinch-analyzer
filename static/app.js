@@ -25,29 +25,38 @@ const FLUID_OPTIONS = [
   { value: 'oxygen', label: 'O2' }
 ];
 
+const PACKAGE_OPTIONS = [
+  { value: 'PR', label: 'Peng-Robinson' },
+  { value: 'SRK', label: 'Soave-Redlich-Kwong' },
+  { value: 'NRTL', label: 'NRTL' },
+  { value: 'UNIQUAC', label: 'UNIQUAC' },
+  { value: 'Wilson', label: 'Wilson' },
+  { value: 'Steam', label: 'Steam Tables' }
+];
+
 // Preloaded Case Studies from PRES '23 paper
 const EXAMPLES = {
   paper1: {
     deltaTmin: 20,
     streams: [
-      { id: 'H1', type: 'hot', fluid: 'mixedrefrigerant', flow: 12.538, pressure: 7.09, Tin: 120.0, Tout: 65.0 },
-      { id: 'H2', type: 'hot', fluid: 'mixedrefrigerant', flow: 120.923, pressure: 7.09, Tin: 80.0, Tout: 50.0 },
-      { id: 'H3', type: 'hot', fluid: 'mixedrefrigerant', flow: 26.276, pressure: 7.09, Tin: 135.0, Tout: 110.0 },
-      { id: 'H4', type: 'hot', fluid: 'mixedrefrigerant', flow: 4.218, pressure: 7.09, Tin: 220.0, Tout: 95.0 },
-      { id: 'H5', type: 'hot', fluid: 'mixedrefrigerant', flow: 26.815, pressure: 7.09, Tin: 135.0, Tout: 105.0 },
-      { id: 'H6', type: 'cold', fluid: 'mixedrefrigerant', flow: 58.904, pressure: 7.09, Tin: 65.0, Tout: 90.0 },
-      { id: 'C1', type: 'cold', fluid: 'mixedrefrigerant', flow: 29.742, pressure: 7.09, Tin: 75.0, Tout: 200.0 },
-      { id: 'C2', type: 'cold', fluid: 'mixedrefrigerant', flow: 24.913, pressure: 7.09, Tin: 30.0, Tout: 210.0 },
-      { id: 'C3', type: 'cold', fluid: 'mixedrefrigerant', flow: 8.418, pressure: 7.09, Tin: 60.0, Tout: 140.0 }
+      { id: 'H1', type: 'hot', fluid: 'mixedrefrigerant', package: 'PR', flow: 12.538, pressure: 7.09, Tin: 120.0, Tout: 65.0 },
+      { id: 'H2', type: 'hot', fluid: 'mixedrefrigerant', package: 'PR', flow: 120.923, pressure: 7.09, Tin: 80.0, Tout: 50.0 },
+      { id: 'H3', type: 'hot', fluid: 'mixedrefrigerant', package: 'PR', flow: 26.276, pressure: 7.09, Tin: 135.0, Tout: 110.0 },
+      { id: 'H4', type: 'hot', fluid: 'mixedrefrigerant', package: 'PR', flow: 4.218, pressure: 7.09, Tin: 220.0, Tout: 95.0 },
+      { id: 'H5', type: 'hot', fluid: 'mixedrefrigerant', package: 'PR', flow: 26.815, pressure: 7.09, Tin: 135.0, Tout: 105.0 },
+      { id: 'H6', type: 'cold', fluid: 'mixedrefrigerant', package: 'PR', flow: 58.904, pressure: 7.09, Tin: 65.0, Tout: 90.0 },
+      { id: 'C1', type: 'cold', fluid: 'mixedrefrigerant', package: 'PR', flow: 29.742, pressure: 7.09, Tin: 75.0, Tout: 200.0 },
+      { id: 'C2', type: 'cold', fluid: 'mixedrefrigerant', package: 'PR', flow: 24.913, pressure: 7.09, Tin: 30.0, Tout: 210.0 },
+      { id: 'C3', type: 'cold', fluid: 'mixedrefrigerant', package: 'PR', flow: 8.418, pressure: 7.09, Tin: 60.0, Tout: 140.0 }
     ]
   },
   paper2: {
     deltaTmin: 5,
     streams: [
-      { id: 'S1', type: 'hot', fluid: 'air', flow: 1.000, pressure: 60.0, Tin: 36.85, Tout: -158.41 },
-      { id: 'S2', type: 'cold', fluid: 'air', flow: 0.308, pressure: 1.0, Tin: -193.84, Tout: 21.85 },
-      { id: 'S3', type: 'cold', fluid: 'propane', flow: 0.755, pressure: 1.0, Tin: -180.15, Tout: -48.15 },
-      { id: 'S4', type: 'cold', fluid: 'methanol', flow: 0.386, pressure: 1.0, Tin: -48.15, Tout: 21.85 }
+      { id: 'S1', type: 'hot', fluid: 'air', package: 'PR', flow: 1.000, pressure: 60.0, Tin: 36.85, Tout: -158.41 },
+      { id: 'S2', type: 'cold', fluid: 'air', package: 'PR', flow: 0.308, pressure: 1.0, Tin: -193.84, Tout: 21.85 },
+      { id: 'S3', type: 'cold', fluid: 'propane', package: 'PR', flow: 0.755, pressure: 1.0, Tin: -180.15, Tout: -48.15 },
+      { id: 'S4', type: 'cold', fluid: 'methanol', package: 'NRTL', flow: 0.386, pressure: 1.0, Tin: -48.15, Tout: 21.85 }
     ]
   }
 };
@@ -98,6 +107,7 @@ function setupEventListeners() {
       id: newId,
       type: 'hot',
       fluid: 'water',
+      package: 'PR',
       flow: 10.0,
       pressure: 1.0,
       Tin: 100.0,
@@ -156,6 +166,12 @@ function renderStreamTable() {
       fluidOptionsHtml += `<option value="${opt.value}" ${s.fluid === opt.value ? 'selected' : ''}>${opt.label}</option>`;
     });
 
+    // Build select dropdown for package
+    let packageOptionsHtml = '';
+    PACKAGE_OPTIONS.forEach(opt => {
+      packageOptionsHtml += `<option value="${opt.value}" ${s.package === opt.value ? 'selected' : ''}>${opt.label}</option>`;
+    });
+
     tr.innerHTML = `
       <td><span class="stream-id-label">${s.id}</span></td>
       <td>
@@ -167,6 +183,11 @@ function renderStreamTable() {
       <td>
         <select class="input-cell" data-idx="${idx}" data-field="fluid">
           ${fluidOptionsHtml}
+        </select>
+      </td>
+      <td>
+        <select class="input-cell" data-idx="${idx}" data-field="package">
+          ${packageOptionsHtml}
         </select>
       </td>
       <td><input type="number" class="input-cell" data-idx="${idx}" data-field="flow" value="${s.flow}" step="0.1" min="0.01"></td>

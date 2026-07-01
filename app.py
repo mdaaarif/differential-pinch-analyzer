@@ -55,19 +55,41 @@ class DWSIMCalculator:
                 print(f"Error initializing DWSIM: {e}")
                 self.enabled = False
 
-    def get_flowsheet(self, fluid_name):
+    def get_flowsheet(self, fluid_name, package_name="PR"):
         if not self.initialized:
             self.initialize()
             
         fluid_clean = fluid_name.lower().replace(" ", "").replace("-", "")
-        if fluid_clean in self.flowsheets:
-            return self.flowsheets[fluid_clean]
+        
+        # Map friendly package name to DWSIM package key
+        package_map = {
+            "pr": "Peng-Robinson (PR)",
+            "pr78": "Peng-Robinson 1978 (PR78)",
+            "srk": "Soave-Redlich-Kwong (SRK)",
+            "nrtl": "NRTL",
+            "uniquac": "UNIQUAC",
+            "wilson": "Wilson",
+            "steam": "Steam Tables (IAPWS-IF97)"
+        }
+        dwsim_pkg = package_map.get(package_name.lower().strip(), None)
+        
+        # Determine fallback if not explicitly matched or if custom
+        if not dwsim_pkg:
+            if "methanol" in fluid_clean:
+                dwsim_pkg = "NRTL"
+            elif "water" in fluid_clean:
+                dwsim_pkg = "Steam Tables (IAPWS-IF97)"
+            else:
+                dwsim_pkg = "Peng-Robinson (PR)"
+                
+        cache_key = (fluid_clean, dwsim_pkg)
+        if cache_key in self.flowsheets:
+            return self.flowsheets[cache_key]
             
         flowsheet = self.auto.CreateFlowsheet()
         
         compounds = []
         fractions = []
-        prop_package = "Peng-Robinson (PR)"
         
         if "mixedrefrigerant" in fluid_clean:
             compounds = ["N-butane", "N-pentane", "N-hexane", "N-heptane"]
@@ -81,11 +103,9 @@ class DWSIMCalculator:
         elif "methanol" in fluid_clean:
             compounds = ["Methanol"]
             fractions = [1.0]
-            prop_package = "NRTL"
         elif "water" in fluid_clean:
             compounds = ["Water"]
             fractions = [1.0]
-            prop_package = "Steam Tables (IAPWS-IF97)"
         elif "co2" in fluid_clean or "carbondioxide" in fluid_clean:
             compounds = ["Carbon dioxide"]
             fractions = [1.0]
@@ -108,12 +128,14 @@ class DWSIMCalculator:
         for c in compounds:
             flowsheet.AddCompound(c)
             
-        flowsheet.CreateAndAddPropertyPackage(prop_package)
+        flowsheet.CreateAndAddPropertyPackage(dwsim_pkg)
         pp_keys = list(flowsheet.PropertyPackages.Keys)
         pp = flowsheet.PropertyPackages[pp_keys[0]]
         
         from DWSIM.Interfaces.Enums.GraphicObjects import ObjectType
-        stream_raw = flowsheet.AddObject(ObjectType.MaterialStream, 100, 100, "CalcStream_" + fluid_clean)
+        # Unique name per flowsheet object to avoid duplicate names in identical classes
+        safe_pkg_name = dwsim_pkg.replace(" ", "_").replace("(", "").replace(")", "").replace("-", "_")
+        stream_raw = flowsheet.AddObject(ObjectType.MaterialStream, 100, 100, f"CalcStream_{fluid_clean}_{safe_pkg_name}")
         stream = stream_raw.GetAsObject()
         stream.PropertyPackage = pp
         
@@ -121,28 +143,28 @@ class DWSIMCalculator:
         stream.SetOverallComposition(System.Array[System.Double](fractions))
         stream.SetMassFlow(1.0)
         
-        self.flowsheets[fluid_clean] = (flowsheet, stream)
+        self.flowsheets[cache_key] = (flowsheet, stream)
         return flowsheet, stream
-
-    def get_enthalpy(self, fluid_name, T_celsius, P_bar):
-        _, stream = self.get_flowsheet(fluid_name)
+ 
+    def get_enthalpy(self, fluid_name, T_celsius, P_bar, package="PR"):
+        _, stream = self.get_flowsheet(fluid_name, package)
         T_kelvin = T_celsius + 273.15
         P_pascal = P_bar * 1e5
         stream.SetTemperature(T_kelvin)
         stream.SetPressure(P_pascal)
         stream.Calculate()
         return stream.GetMassEnthalpy()
-
-    def get_cp(self, fluid_name, T_celsius, P_bar):
+ 
+    def get_cp(self, fluid_name, T_celsius, P_bar, package="PR"):
         try:
-            h1 = self.get_enthalpy(fluid_name, T_celsius, P_bar)
-            h2 = self.get_enthalpy(fluid_name, T_celsius + 0.1, P_bar)
+            h1 = self.get_enthalpy(fluid_name, T_celsius, P_bar, package)
+            h2 = self.get_enthalpy(fluid_name, T_celsius + 0.1, P_bar, package)
             cp = (h2 - h1) / 0.1 * 1000.0
             if np.isnan(cp) or np.isinf(cp) or cp <= 0:
                 return 1000.0
             return cp
         except Exception as e:
-            print(f"DWSIM Cp calculation failed for {fluid_name} at {T_celsius} C: {e}")
+            print(f"DWSIM Cp calculation failed for {fluid_name} with package {package} at {T_celsius} C: {e}")
             return 1000.0
 
 dwsim_calculator = DWSIMCalculator()
@@ -182,14 +204,14 @@ def get_props_si_cached(output_prop, input_prop1, val1, input_prop2, val2, fluid
         return CP.PropsSI(output_prop, input_prop1, val1, input_prop2, val2, fluid)
 
 @lru_cache(maxsize=10000)
-def get_cp_value(fluid, temp_c, pressure_bar, use_dwsim=False):
+def get_cp_value(fluid, temp_c, pressure_bar, package="PR", use_dwsim=False):
     """
     Returns specific heat capacity cp in J/kg-K at temp_c (Celsius) and pressure_bar (bar).
     Includes safety fallbacks to handle phase boundaries/supercritical exceptions.
     Cached to make high-resolution discretization solver runs run in milliseconds.
     """
     if use_dwsim and dwsim_calculator.enabled:
-        return dwsim_calculator.get_cp(fluid, temp_c, pressure_bar)
+        return dwsim_calculator.get_cp(fluid, temp_c, pressure_bar, package)
         
     fluid_clean = fluid.lower().replace(" ", "")
     
@@ -296,7 +318,7 @@ def evaluate_stream_cp_profile(stream, T_start, T_end, step=1.0, use_dwsim=False
     profile = []
     
     for T in temps:
-        cp_j_kg = get_cp_value(fluid, T, pressure, use_dwsim=use_dwsim)
+        cp_j_kg = get_cp_value(fluid, T, pressure, stream.get("package", "PR"), use_dwsim=use_dwsim)
         cp_kw_c = (flow * cp_j_kg) / 1000.0 # convert W/°C to kW/°C
         profile.append((float(T), float(cp_kw_c)))
         
@@ -374,7 +396,7 @@ def run_differential_pinch_core(streams, delta_tmin, temp_step=1.0, use_dwsim=Fa
             # Check if active in this interval
             if t_low <= t_actual <= t_high:
                 # Calculate local CP
-                cp_j_kg = get_cp_value(s["fluid"], t_actual, s.get("pressure", 1.0), use_dwsim=use_dwsim)
+                cp_j_kg = get_cp_value(s["fluid"], t_actual, s.get("pressure", 1.0), s.get("package", "PR"), use_dwsim=use_dwsim)
                 cp_kw_c = (s["flow"] * cp_j_kg) / 1000.0
                 if is_hot:
                     sum_cp_hot += cp_kw_c
@@ -442,7 +464,7 @@ def run_differential_pinch_core(streams, delta_tmin, temp_step=1.0, use_dwsim=Fa
         cp_hot_total = 0.0
         for s in streams:
             if s["type"] == "hot" and min(s["Tin"], s["Tout"]) <= T_avg <= max(s["Tin"], s["Tout"]):
-                cp_val = get_cp_value(s["fluid"], T_avg, s.get("pressure", 1.0), use_dwsim=use_dwsim)
+                cp_val = get_cp_value(s["fluid"], T_avg, s.get("pressure", 1.0), s.get("package", "PR"), use_dwsim=use_dwsim)
                 cp_hot_total += (s["flow"] * cp_val) / 1000.0
         hot_Q_cum += cp_hot_total * (T_high - T_low)
         hot_H.append(float(hot_Q_cum))
@@ -452,7 +474,7 @@ def run_differential_pinch_core(streams, delta_tmin, temp_step=1.0, use_dwsim=Fa
         cp_cold_total = 0.0
         for s in streams:
             if s["type"] == "cold" and min(s["Tin"], s["Tout"]) <= T_avg <= max(s["Tin"], s["Tout"]):
-                cp_val = get_cp_value(s["fluid"], T_avg, s.get("pressure", 1.0), use_dwsim=use_dwsim)
+                cp_val = get_cp_value(s["fluid"], T_avg, s.get("pressure", 1.0), s.get("package", "PR"), use_dwsim=use_dwsim)
                 cp_cold_total += (s["flow"] * cp_val) / 1000.0
         cold_Q_cum += cp_cold_total * (T_high - T_low)
         cold_H.append(float(cold_Q_cum))
@@ -482,11 +504,11 @@ def run_differential_pinch_core(streams, delta_tmin, temp_step=1.0, use_dwsim=Fa
     for s in streams:
         t_range = abs(s["Tin"] - s["Tout"])
         if t_range < 0.1:
-            cp_avg_kw = (s["flow"] * get_cp_value(s["fluid"], s["Tin"], s.get("pressure", 1.0), use_dwsim=use_dwsim)) / 1000.0
+            cp_avg_kw = (s["flow"] * get_cp_value(s["fluid"], s["Tin"], s.get("pressure", 1.0), s.get("package", "PR"), use_dwsim=use_dwsim)) / 1000.0
         else:
             # Numerical integration of Cp
             t_steps = np.linspace(min(s["Tin"], s["Tout"]), max(s["Tin"], s["Tout"]), 50)
-            cp_sum = sum(get_cp_value(s["fluid"], t, s.get("pressure", 1.0), use_dwsim=use_dwsim) for t in t_steps)
+            cp_sum = sum(get_cp_value(s["fluid"], t, s.get("pressure", 1.0), s.get("package", "PR"), use_dwsim=use_dwsim) for t in t_steps)
             cp_avg_j_kg = cp_sum / len(t_steps)
             cp_avg_kw = (s["flow"] * cp_avg_j_kg) / 1000.0
             
