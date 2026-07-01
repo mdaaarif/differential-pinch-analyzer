@@ -250,6 +250,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow: hidden;
 }
 
 #config-view .card-streams {
@@ -293,7 +294,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 /* Glassmorphic Cards */
@@ -563,8 +564,8 @@ select.input-cell {
 .chart-svg {
   width: 100%;
   max-width: 760px;
-  height: auto;
-  aspect-ratio: 1.6;
+  height: 100%;
+  min-height: 0;
 }
 
 .chart-legend {
