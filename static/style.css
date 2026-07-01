@@ -239,11 +239,13 @@ input[type="range"]::-webkit-slider-thumb:hover {
   flex: 1;
   overflow: hidden;
   position: relative;
+  min-height: 0;
 }
 
 .view-pane {
   display: none;
   height: 100%;
+  min-height: 0;
 }
 
 .view-pane.active {
@@ -288,6 +290,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   flex: 1;
   gap: 16px;
   overflow: hidden;
+  min-height: 0;
 }
 
 .sidebar-results {
@@ -295,6 +298,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   flex-direction: column;
   gap: 16px;
   overflow-y: auto;
+  min-height: 0;
 }
 
 /* Glassmorphic Cards */
@@ -492,6 +496,7 @@ select.input-cell {
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  min-height: 0;
 }
 
 .tab-nav {
@@ -565,6 +570,7 @@ select.input-cell {
   width: 100%;
   max-width: 760px;
   height: 100%;
+  max-height: 52vh;
   min-height: 0;
 }
 
