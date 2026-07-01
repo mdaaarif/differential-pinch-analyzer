@@ -64,7 +64,11 @@
         <div class="card card-streams">
           <div class="card-header">
             <h2>Process Streams</h2>
-            <button id="add-stream-btn" class="btn btn-xs btn-primary">+ Add Stream</button>
+            <div style="display: flex; gap: 8px;">
+              <button id="add-stream-btn" class="btn btn-xs btn-primary">+ Add Stream</button>
+              <button id="upload-excel-btn" class="btn btn-xs btn-outline">Upload Excel</button>
+              <input type="file" id="excel-file-input" accept=".xlsx" style="display: none;">
+            </div>
           </div>
           <div class="card-body scrollable">
             <table class="streams-table" id="streams-table">

@@ -118,6 +118,44 @@ function setupEventListeners() {
     solveAndRender();
   });
 
+  // Excel Upload
+  document.getElementById('upload-excel-btn').addEventListener('click', () => {
+    document.getElementById('excel-file-input').click();
+  });
+  
+  document.getElementById('excel-file-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const res = await fetch('/api/upload_excel', {
+        method: 'POST',
+        body: formData
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Upload failed");
+      }
+      const data = await res.json();
+      state.streams = data.streams;
+      state.deltaTmin = data.deltaTmin;
+      
+      document.getElementById('example-select').value = 'custom';
+      document.getElementById('tmin-slider').value = state.deltaTmin;
+      document.getElementById('tmin-value').textContent = `${state.deltaTmin} °C`;
+      
+      renderStreamTable();
+      solveAndRender();
+    } catch (err) {
+      alert("Error uploading Excel: " + err.message);
+    }
+    
+    e.target.value = ''; // Reset input
+  });
+
   // Tab Switching
   const tabButtons = document.querySelectorAll('.tab-nav .tab-btn');
   tabButtons.forEach(btn => {
@@ -217,6 +255,21 @@ function renderStreamTable() {
       
       state.streams[idx][field] = val;
       document.getElementById('example-select').value = 'custom';
+      
+      if (field === 'fluid' && val.toLowerCase() === 'custom') {
+        const mw = prompt("Enter custom Molecular Weight (Mw):", "50");
+        if (mw !== null) {
+            const tc = prompt("Enter custom Critical Temperature (Tc) [K]:", "400");
+            const pc = prompt("Enter custom Critical Pressure (Pc) [bar]:", "50");
+            const omega = prompt("Enter custom Acentric Factor (omega):", "0.2");
+            state.streams[idx].custom_props = {
+               Mw: parseFloat(mw) || 50,
+               Tc: parseFloat(tc) || 400,
+               Pc: parseFloat(pc) || 50,
+               omega: parseFloat(omega) || 0.2
+            };
+        }
+      }
       
       // Update cell color if type changed
       if (field === 'type') {

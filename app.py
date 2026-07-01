@@ -91,7 +91,18 @@ class DWSIMCalculator:
         compounds = []
         fractions = []
         
-        if "mixedrefrigerant" in fluid_clean:
+        # Dynamic Custom Mixture Parsing: e.g. "N-butane[0.4]&N-pentane[0.6]"
+        if "[" in fluid_name and "&" in fluid_name:
+            import re
+            parts = fluid_name.split("&")
+            for p in parts:
+                match = re.match(r"([^\[]+)\[([\d\.]+)\]", p.strip())
+                if match:
+                    comp_name = match.group(1).strip()
+                    # Basic mapping to DWSIM standard names if needed, or capitalize
+                    compounds.append(comp_name.capitalize())
+                    fractions.append(float(match.group(2)))
+        elif "mixedrefrigerant" in fluid_clean:
             compounds = ["N-butane", "N-pentane", "N-hexane", "N-heptane"]
             fractions = [0.25, 0.25, 0.25, 0.25]
         elif "air" in fluid_clean:
@@ -636,6 +647,61 @@ def solve_pinch():
     
     results = run_differential_pinch(streams, delta_tmin, thermo_engine=thermo_engine)
     return jsonify(results)
+
+@app.route('/api/upload_excel', methods=['POST'])
+def upload_excel():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+        
+    try:
+        # Read the Excel file into memory
+        file_stream = io.BytesIO(file.read())
+        
+        # Parse Streams Sheet
+        df_streams = pd.read_excel(file_stream, sheet_name="Streams")
+        streams = []
+        for idx, row in df_streams.iterrows():
+            if pd.isna(row.get('Stream')):
+                continue
+            stream = {
+                "id": str(row.get("Stream", f"S{idx+1}")),
+                "type": str(row.get("Type", "hot")).lower().strip(),
+                "fluid": str(row.get("Fluid", "water")).strip(),
+                "flow": float(row.get("Flow", 1.0)),
+                "pressure": float(row.get("Pressure", 1.0)),
+                "Tin": float(row.get("Tin", 0.0)),
+                "Tout": float(row.get("Tout", 0.0))
+            }
+            # Optional Package column
+            if "Package" in row and pd.notna(row["Package"]):
+                stream["package"] = str(row["Package"]).strip()
+                
+            # Parse custom properties if present
+            if stream["fluid"].lower() == "custom":
+                custom_props = {}
+                if "Mw" in row and pd.notna(row["Mw"]): custom_props["Mw"] = float(row["Mw"])
+                if "Tc" in row and pd.notna(row["Tc"]): custom_props["Tc"] = float(row["Tc"])
+                if "Pc" in row and pd.notna(row["Pc"]): custom_props["Pc"] = float(row["Pc"])
+                if "omega" in row and pd.notna(row["omega"]): custom_props["omega"] = float(row["omega"])
+                if "ConstantCp" in row and pd.notna(row["ConstantCp"]): custom_props["ConstantCp"] = float(row["ConstantCp"])
+                stream["custom_props"] = custom_props
+                
+            streams.append(stream)
+            
+        # Parse Settings Sheet
+        df_settings = pd.read_excel(file_stream, sheet_name="Settings")
+        delta_tmin = 20.0
+        for idx, row in df_settings.iterrows():
+            param = str(row.get("Parameter", "")).lower().strip()
+            if param == "tmin" or param == "delta_tmin":
+                delta_tmin = float(row.get("Value", 20.0))
+                
+        return jsonify({"streams": streams, "deltaTmin": delta_tmin})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 def open_browser():
     webbrowser.open_new("http://127.0.0.1:5000")
