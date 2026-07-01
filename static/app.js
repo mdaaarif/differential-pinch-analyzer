@@ -22,7 +22,8 @@ const FLUID_OPTIONS = [
   { value: 'methanol', label: 'Methanol' },
   { value: 'carbondioxide', label: 'CO2' },
   { value: 'nitrogen', label: 'N2' },
-  { value: 'oxygen', label: 'O2' }
+  { value: 'oxygen', label: 'O2' },
+  { value: 'custom', label: 'Custom' }
 ];
 
 const PACKAGE_OPTIONS = [
@@ -79,7 +80,7 @@ function setupEventListeners() {
   const engineSelect = document.getElementById('engine-select');
   if (engineSelect) {
     engineSelect.addEventListener('change', () => {
-      solveAndRender();
+      // Just update, do not auto-solve
     });
   }
 
@@ -91,7 +92,6 @@ function setupEventListeners() {
   });
   slider.addEventListener('change', (e) => {
     state.deltaTmin = parseFloat(e.target.value);
-    solveAndRender();
   });
 
   // Reset Button
@@ -115,7 +115,6 @@ function setupEventListeners() {
     });
     document.getElementById('example-select').value = 'custom';
     renderStreamTable();
-    solveAndRender();
   });
 
   // Excel Upload
@@ -148,12 +147,22 @@ function setupEventListeners() {
       document.getElementById('tmin-value').textContent = `${state.deltaTmin} °C`;
       
       renderStreamTable();
-      solveAndRender();
     } catch (err) {
       alert("Error uploading Excel: " + err.message);
     }
     
     e.target.value = ''; // Reset input
+  });
+
+  // Run Analysis Button
+  document.getElementById('run-analysis-btn').addEventListener('click', () => {
+    solveAndRender();
+  });
+
+  // Back Button
+  document.getElementById('back-to-config-btn').addEventListener('click', () => {
+    document.getElementById('results-view').style.display = 'none';
+    document.getElementById('config-view').style.display = 'flex';
   });
 
   // Tab Switching
@@ -187,7 +196,6 @@ function loadCaseStudy(key) {
   document.getElementById('tmin-value').textContent = `${ex.deltaTmin} °C`;
   
   renderStreamTable();
-  solveAndRender();
 }
 
 // --- Render Stream List Table ---
@@ -219,9 +227,10 @@ function renderStreamTable() {
         </select>
       </td>
       <td>
-        <select class="input-cell" data-idx="${idx}" data-field="fluid">
+        <input type="text" class="input-cell" list="fluid-list-${idx}" data-idx="${idx}" data-field="fluid" value="${s.fluid}">
+        <datalist id="fluid-list-${idx}">
           ${fluidOptionsHtml}
-        </select>
+        </datalist>
       </td>
       <td>
         <select class="input-cell" data-idx="${idx}" data-field="package">
@@ -275,8 +284,6 @@ function renderStreamTable() {
       if (field === 'type') {
         e.target.className = `input-cell type-select ${val}`;
       }
-      
-      solveAndRender();
     });
   });
 
@@ -287,7 +294,6 @@ function renderStreamTable() {
       state.streams.splice(idx, 1);
       document.getElementById('example-select').value = 'custom';
       renderStreamTable();
-      solveAndRender();
     });
   });
 }
@@ -315,6 +321,17 @@ async function solveAndRender() {
     state.curves = data.curves;
     state.profiles = data.profiles;
     state.comparison = data.comparison;
+
+    updateTargetsPanel();
+    
+    // Switch view to Results Dashboard
+    document.getElementById('config-view').style.display = 'none';
+    document.getElementById('results-view').style.display = 'block';
+    
+    // Render charts inside the visible container
+    setTimeout(() => {
+      renderCharts();
+    }, 50);
 
     updateTargetsPanel();
     renderCharts();

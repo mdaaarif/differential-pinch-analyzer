@@ -236,6 +236,52 @@ input[type="range"]::-webkit-slider-thumb:hover {
    MAIN WORKSPACE & SIDEBAR
    ========================================================================== */
 .app-main {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.view-pane {
+  display: none;
+  height: 100%;
+}
+
+.view-pane.active {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+#config-view .card-streams {
+  flex: 1;
+}
+
+.action-footer {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0 8px 0;
+}
+
+.btn-large {
+  font-size: 1.1rem;
+  padding: 14px 28px;
+  border-radius: 12px;
+}
+
+.results-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.results-header h2 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.results-grid {
   display: grid;
   grid-template-columns: 460px 1fr;
   flex: 1;
@@ -243,7 +289,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   overflow: hidden;
 }
 
-.sidebar {
+.sidebar-results {
   display: flex;
   flex-direction: column;
   gap: 16px;
